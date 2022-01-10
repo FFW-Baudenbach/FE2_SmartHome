@@ -5,7 +5,7 @@ services:
     image: odin568/fe2_smarthome:latest
     container_name: fe2_smarthome
     ports:
-      - "8088:8080"
+      - "8082:8080"
     restart: always
     healthcheck:
       test: curl --insecure --fail http://localhost:8080/actuator/health || exit 1
@@ -13,14 +13,10 @@ services:
       timeout: 10s
       retries: 3
     environment:
-      ## The defaults
-      #- INITIALDELAY=10000
-      #- FIXEDDELAY=60000
-      #- ALIVE_CRON=0 0 6 * * *
       ## Adjust logging
       #- LOGGING_LEVEL_COM_ODIN568=DEBUG
-      #- LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SCHEDULING=DEBUG
-      - MODE=INTERNAL <or> EXTERNAL
-      - FE2_APIKEY=addTokenHere
-      - PUSHOVER_TOKEN=addTokenHere
-      - PUSHOVER_USER=addUserHere
+      #- LOGGING_LEVEL_COM_GITHUB_KAKLAKARIADA_FRITZBOX=DEBUG
+      - FRITZBOX_URL=http://fritz.box # better use ip directly
+      - FRITZBOX_USERNAME=addUserNameHere
+      - FRITZBOX_PASSWORD=addPasswordHere
+      - FRITZBOX_SWITCHID=addSwitchIdHere # to find out, enter any number and call the getDevices API to grab the correct switchId

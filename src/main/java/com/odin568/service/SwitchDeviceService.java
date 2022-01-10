@@ -9,6 +9,7 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.util.*;
 
 @Service
@@ -18,17 +19,29 @@ public class SwitchDeviceService implements HealthIndicator
     private final String url;
     private final String username;
     private final String password;
-    private final Optional<String> switchId;
+    private final String switchId;
 
     public SwitchDeviceService(@Value("${fritzbox.url}") String url,
                                @Value("${fritzbox.username}") String username,
                                @Value("${fritzbox.password}") String password,
-                               @Value("${fritzbox.switchid:#{null}}") Optional<Long> switchId)
+                               @Value("${fritzbox.switchid}") Long switchId)
     {
         this.url = url;
         this.username = username;
         this.password = password;
-        this.switchId = switchId.map(String::valueOf);
+        this.switchId = String.valueOf(switchId);
+    }
+
+    @PostConstruct
+    private void checkConfiguration() {
+        if (!url.matches("^http(s)?://.*"))
+            throw new IllegalArgumentException("Invalid FritzBox url. Needs to start with protocol (http, https)");
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Invalid FritzBox username");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Invalid FritzBox password");
+        }
     }
 
     public Map<String, String> GetSwitchDevices()
@@ -66,24 +79,24 @@ public class SwitchDeviceService implements HealthIndicator
             homeAutomation = HomeAutomation.connect(url, username, password);
 
             if (doChecks) {
-                if (!homeAutomation.getSwitchList().contains(switchId.get())) {
+                if (!homeAutomation.getSwitchList().contains(switchId)) {
                     throw new FritzBoxException("Switch not found");
                 }
-                if (!homeAutomation.getSwitchPresent(switchId.get())) {
+                if (!homeAutomation.getSwitchPresent(switchId)) {
                     throw new IllegalStateException("Switch currently not present");
                 }
             }
 
-            homeAutomation.switchPowerState(switchId.get(), on);
+            homeAutomation.switchPowerState(switchId, on);
 
             if (doChecks) {
-                if (homeAutomation.getSwitchState(switchId.get()) != on) {
+                if (homeAutomation.getSwitchState(switchId) != on) {
                     throw new IllegalStateException("Switching power state failed");
                 }
             }
         }
         catch (RuntimeException ex) {
-            LOG.error("Failed switching power state for switch " + switchId.get(), ex);
+            LOG.error("Failed switching power state for switch " + switchId, ex);
             throw ex;
         }
         finally {
@@ -103,14 +116,14 @@ public class SwitchDeviceService implements HealthIndicator
                 throw new FritzBoxException("No SwitchId configured");
             }
 
-            if (!ids.contains(switchId.get())) {
-                throw new FritzBoxException("Switch " + switchId.get() + " not found");
+            if (!ids.contains(switchId)) {
+                throw new FritzBoxException("Switch " + switchId + " not found");
             }
-            boolean switchAvailable = homeAutomation.getSwitchPresent(switchId.get());
-            boolean switchState = homeAutomation.getSwitchState(switchId.get());
+            boolean switchAvailable = homeAutomation.getSwitchPresent(switchId);
+            boolean switchState = homeAutomation.getSwitchState(switchId);
 
             if (!switchAvailable) {
-                throw new FritzBoxException("Switch " + switchId.get() + " currently not present");
+                throw new FritzBoxException("Switch " + switchId + " currently not present");
             }
             return Health.up().withDetail("switchState", switchState).build();
         }

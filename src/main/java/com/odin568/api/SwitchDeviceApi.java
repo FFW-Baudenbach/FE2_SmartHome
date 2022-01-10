@@ -22,7 +22,7 @@ public class SwitchDeviceApi {
 
     @GetMapping("/switchDeviceApi/getDevices")
     public String GetDevices() {
-        Map<String, String> devices = null;
+        Map<String, String> devices;
         try {
             devices = switchDeviceService.GetSwitchDevices();
         }
