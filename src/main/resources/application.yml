@@ -1,0 +1,19 @@
+spring:
+  main:
+    banner-mode: off
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - info
+          - health
+  endpoint:
+    health:
+      show-details: ALWAYS
+  info:
+    java:
+      enabled: true
+  security:
+    enabled: false

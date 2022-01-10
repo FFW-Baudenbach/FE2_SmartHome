@@ -1,0 +1,47 @@
+plugins {
+	id 'org.springframework.boot' version '2.6.2'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+	id 'java'
+	id 'idea'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+        vendor = JvmVendorSpec.ADOPTOPENJDK
+    }
+}
+
+// GitHub-Version >> Docker Version >> Fallback
+if (System.getenv("RELEASE_VERSION")) {
+	version = System.getenv("RELEASE_VERSION")
+}
+else {
+	version = "SNAPSHOT"
+}
+println("Building version $version")
+
+jar {
+	enabled = false
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'com.github.kaklakariada:fritzbox-java-api:1.5.0'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+test {
+	useJUnitPlatform()
+}
+
+springBoot {
+	buildInfo()
+}

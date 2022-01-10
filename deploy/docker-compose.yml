@@ -1,0 +1,26 @@
+version: '3.7'
+
+services:
+  fe2_smarthome:
+    image: odin568/fe2_smarthome:latest
+    container_name: fe2_smarthome
+    ports:
+      - "8088:8080"
+    restart: always
+    healthcheck:
+      test: curl --insecure --fail http://localhost:8080/actuator/health || exit 1
+      interval: 1m
+      timeout: 10s
+      retries: 3
+    environment:
+      ## The defaults
+      #- INITIALDELAY=10000
+      #- FIXEDDELAY=60000
+      #- ALIVE_CRON=0 0 6 * * *
+      ## Adjust logging
+      #- LOGGING_LEVEL_COM_ODIN568=DEBUG
+      #- LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SCHEDULING=DEBUG
+      - MODE=INTERNAL <or> EXTERNAL
+      - FE2_APIKEY=addTokenHere
+      - PUSHOVER_TOKEN=addTokenHere
+      - PUSHOVER_USER=addUserHere
