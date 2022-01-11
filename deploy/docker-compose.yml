@@ -15,8 +15,8 @@ services:
     environment:
       ## Adjust logging
       #- LOGGING_LEVEL_COM_ODIN568=DEBUG
-      #- LOGGING_LEVEL_COM_GITHUB_KAKLAKARIADA_FRITZBOX=DEBUG
+      #- LOGGING_LEVEL_COM_GITHUB_KAKLAKARIADA_FRITZBOX=TRACE
       - FRITZBOX_URL=http://fritz.box # better use ip directly
       - FRITZBOX_USERNAME=addUserNameHere
       - FRITZBOX_PASSWORD=addPasswordHere
-      - FRITZBOX_SWITCHID=addSwitchIdHere # to find out, enter any number and call the getDevices API to grab the correct switchId
+      - FRITZBOX_SWITCHID=addSwitchIdHere # find out in fritzbox web ui
