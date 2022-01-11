@@ -10,7 +10,7 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.*;
+import java.util.List;
 
 @Service
 public class SwitchDeviceService implements HealthIndicator
@@ -44,31 +44,7 @@ public class SwitchDeviceService implements HealthIndicator
         }
     }
 
-    public Map<String, String> GetSwitchDevices()
-    {
-        var result = new HashMap<String, String>();
-        HomeAutomation homeAutomation = null;
-        try {
-            homeAutomation = HomeAutomation.connect(url, username, password);
-            List<String> ids = homeAutomation.getSwitchList();
-
-            for (String id : ids) {
-                result.put(id, homeAutomation.getSwitchName(id));
-            }
-
-            return result;
-        }
-        catch (RuntimeException ex) {
-            LOG.error("Failed getting switch devices", ex);
-            throw ex;
-        }
-        finally {
-            if (homeAutomation != null)
-                homeAutomation.logout();
-        }
-    }
-
-    public void SwitchPowerState(boolean on, boolean doChecks)
+    public void SwitchPowerState(final boolean on)
     {
         if (switchId.isEmpty()) {
             throw new IllegalStateException("No SwitchId configured");
@@ -78,21 +54,17 @@ public class SwitchDeviceService implements HealthIndicator
         try {
             homeAutomation = HomeAutomation.connect(url, username, password);
 
-            if (doChecks) {
-                if (!homeAutomation.getSwitchList().contains(switchId)) {
-                    throw new FritzBoxException("Switch not found");
-                }
-                if (!homeAutomation.getSwitchPresent(switchId)) {
-                    throw new IllegalStateException("Switch currently not present");
-                }
+            if (!homeAutomation.getSwitchList().contains(switchId)) {
+                throw new FritzBoxException("Switch not found");
+            }
+            if (!homeAutomation.getSwitchPresent(switchId)) {
+                throw new FritzBoxException("Switch currently not present");
             }
 
             homeAutomation.switchPowerState(switchId, on);
 
-            if (doChecks) {
-                if (homeAutomation.getSwitchState(switchId) != on) {
-                    throw new IllegalStateException("Switching power state failed");
-                }
+            if (homeAutomation.getSwitchState(switchId) != on) {
+                throw new FritzBoxException("Switching power state failed");
             }
         }
         catch (RuntimeException ex) {
@@ -110,13 +82,13 @@ public class SwitchDeviceService implements HealthIndicator
         HomeAutomation homeAutomation = null;
         try {
             homeAutomation = HomeAutomation.connect(url, username, password);
-            List<String> ids = homeAutomation.getSwitchList();
+            List<String> switchDevices = homeAutomation.getSwitchList();
 
-            if (switchId.isEmpty()) {
+            if (switchId.isBlank()) {
                 throw new FritzBoxException("No SwitchId configured");
             }
 
-            if (!ids.contains(switchId)) {
+            if (!switchDevices.contains(switchId)) {
                 throw new FritzBoxException("Switch " + switchId + " not found");
             }
             boolean switchAvailable = homeAutomation.getSwitchPresent(switchId);
