@@ -1,6 +1,7 @@
 package com.odin568.api;
 
 import com.odin568.service.SwitchDeviceService;
+import com.odin568.service.SwitchDeviceService.SwitchState;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,25 +17,33 @@ public class SwitchDeviceApi {
         this.switchDeviceService = switchDeviceService;
     }
 
+    @GetMapping("/switchDeviceApi/toggle")
+    public String ToggleDevice() {
+        try {
+            return switchDeviceService.SwitchPowerState(SwitchState.TOGGLE).toString();
+        }
+        catch (RuntimeException ex) {
+            return "ERROR: " + ex.getMessage();
+        }
+    }
+
     @GetMapping("/switchDeviceApi/switchOn")
     public String SwitchDeviceOn() {
         try {
-            switchDeviceService.SwitchPowerState(true);
+            return switchDeviceService.SwitchPowerState(SwitchState.ON).toString();
         }
         catch (RuntimeException ex) {
-            return "FAILED - " + ex.getMessage();
+            return "ERROR: " + ex.getMessage();
         }
-        return "OK";
     }
 
     @GetMapping("/switchDeviceApi/switchOff")
     public String SwitchDeviceOff() {
         try {
-            switchDeviceService.SwitchPowerState(false);
+            return switchDeviceService.SwitchPowerState(SwitchState.OFF).toString();
         }
         catch (RuntimeException ex) {
-            return "FAILED - " + ex.getMessage();
+            return "ERROR: " + ex.getMessage();
         }
-        return "OK";
     }
 }

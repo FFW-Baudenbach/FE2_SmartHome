@@ -13,7 +13,15 @@ management:
     health:
       show-details: ALWAYS
   info:
+    env:
+      enabled: true
     java:
       enabled: true
   security:
     enabled: false
+
+info:
+  config:
+    fritzbox:
+      url: ${fritzbox.url}
+      switchid: ${fritzbox.switchid}

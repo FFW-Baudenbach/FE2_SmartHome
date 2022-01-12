@@ -15,6 +15,8 @@ import java.util.List;
 @Service
 public class SwitchDeviceService implements HealthIndicator
 {
+    public enum SwitchState { ON, OFF, TOGGLE }
+
     private static final Logger LOG = LoggerFactory.getLogger(SwitchDeviceService.class);
     private final String url;
     private final String username;
@@ -44,11 +46,13 @@ public class SwitchDeviceService implements HealthIndicator
         }
     }
 
-    public void SwitchPowerState(final boolean on)
+    public SwitchState SwitchPowerState(final SwitchState targetState)
     {
         if (switchId.isEmpty()) {
             throw new IllegalStateException("No SwitchId configured");
         }
+
+        LOG.info("Started switching to mode " + targetState);
 
         HomeAutomation homeAutomation = null;
         try {
@@ -61,14 +65,28 @@ public class SwitchDeviceService implements HealthIndicator
                 throw new FritzBoxException("Switch currently not present");
             }
 
-            homeAutomation.switchPowerState(switchId, on);
-
-            if (homeAutomation.getSwitchState(switchId) != on) {
-                throw new FritzBoxException("Switching power state failed");
+            switch(targetState) {
+                case ON -> homeAutomation.switchPowerState(switchId, true);
+                case OFF -> homeAutomation.switchPowerState(switchId, false);
+                case TOGGLE -> homeAutomation.togglePowerState(switchId);
             }
+
+            // It can take some time until state is reflected properly
+            Thread.sleep(1000);
+
+            SwitchState newState = homeAutomation.getSwitchState(switchId) ? SwitchState.ON : SwitchState.OFF;
+
+            if (targetState != SwitchState.TOGGLE && newState != targetState)
+                throw new FritzBoxException("Switching power state " + targetState + " failed");
+
+            LOG.info("Finished switching to mode " + targetState);
+            return newState;
+        }
+        catch (InterruptedException ex) {
+            throw new RuntimeException(ex);
         }
         catch (RuntimeException ex) {
-            LOG.error("Failed switching power state for switch " + switchId, ex);
+            LOG.error("Failed switching power state", ex);
             throw ex;
         }
         finally {
@@ -89,23 +107,20 @@ public class SwitchDeviceService implements HealthIndicator
             }
 
             if (!switchDevices.contains(switchId)) {
-                throw new FritzBoxException("Switch " + switchId + " not found");
+                throw new FritzBoxException("Switch not found");
             }
-            boolean switchAvailable = homeAutomation.getSwitchPresent(switchId);
+
+            if (!homeAutomation.getSwitchPresent(switchId)) {
+                throw new FritzBoxException("Switch currently not present");
+            }
+
             boolean switchState = homeAutomation.getSwitchState(switchId);
 
-            if (!switchAvailable) {
-                throw new FritzBoxException("Switch " + switchId + " currently not present");
-            }
-            return Health.up().withDetail("switchState", switchState).build();
-        }
-        catch (FritzBoxException e) {
-            LOG.error("Unable to determine health", e);
-            return Health.outOfService().withDetail("reason", e.getMessage()).build();
+            return Health.up().withDetail("switchState", switchState ? "ON" : "OFF").build();
         }
         catch (RuntimeException e) {
-            LOG.error("Unexpected issue on determining health", e);
-            return Health.down().withDetail("reason", e.getMessage()).build();
+            LOG.error("Unable to determine health", e);
+            return Health.down().withDetail("exception", e.getMessage()).build();
         }
         finally {
             if (homeAutomation != null)
