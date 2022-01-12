@@ -11,6 +11,9 @@ management:
           - health
   endpoint:
     health:
+      status:
+        http-mapping:
+          down: 200
       show-details: ALWAYS
   info:
     env:
