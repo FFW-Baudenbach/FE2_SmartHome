@@ -17,6 +17,11 @@ management:
       enabled: true
     java:
       enabled: true
+  health:
+    ping:
+      enabled: true
+    defaults:
+      enabled: false
   security:
     enabled: false
 
