@@ -20,3 +20,5 @@ services:
       - FRITZBOX_USERNAME=addUserNameHere
       - FRITZBOX_PASSWORD=addPasswordHere
       - FRITZBOX_SWITCHID=addSwitchIdHere # find out in fritzbox web ui
+      - SCHEDULE_SWITCHOFF_FIXEDDELAYMINUTES=1
+      - SCHEDULE_SWITCHOFF_DEFAULTSWITCHONMINUTES=30

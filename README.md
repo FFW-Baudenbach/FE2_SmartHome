@@ -19,9 +19,19 @@ Following apis are implemented:
 * /actuator/health  
   Checks if configured device is present! 
 
+## Provided schedule
+A configurable optional task takes care to automatically shut off the switch device after a given period in time.  
+If a motion was detected by a Motion Detector, then the time is extended again to the defined period.
+
 ## Usage
 The following environment variables need to be provided:
 * fritzbox.url
 * fritzbox.username
 * fritzbox.password
 * fritzbox.switchid
+
+
+The following environment variables are optional:
+* schedule.switchoff.fixedDelayMinutes (default: off)
+* schedule.switchoff.defaultSwitchOnMinutes (default: 30)
+

@@ -23,6 +23,7 @@ public class SwitchDeviceService implements HealthIndicator
     private final String password;
     private final String switchId;
 
+
     public SwitchDeviceService(@Value("${fritzbox.url}") String url,
                                @Value("${fritzbox.username}") String username,
                                @Value("${fritzbox.password}") String password,
@@ -44,26 +45,20 @@ public class SwitchDeviceService implements HealthIndicator
         if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("Invalid FritzBox password");
         }
+        if (switchId == null || switchId.isBlank()) {
+            throw new IllegalStateException("Invalid SwitchId configured");
+        }
     }
 
     public SwitchState SwitchPowerState(final SwitchState targetState)
     {
-        if (switchId.isEmpty()) {
-            throw new IllegalStateException("No SwitchId configured");
-        }
-
         LOG.info("Started switching to mode " + targetState);
 
         HomeAutomation homeAutomation = null;
         try {
             homeAutomation = HomeAutomation.connect(url, username, password);
 
-            if (!homeAutomation.getSwitchList().contains(switchId)) {
-                throw new FritzBoxException("Switch not found");
-            }
-            if (!homeAutomation.getSwitchPresent(switchId)) {
-                throw new FritzBoxException("Switch currently not present");
-            }
+            validateSwitchDevice(homeAutomation);
 
             switch(targetState) {
                 case ON -> homeAutomation.switchPowerState(switchId, true);
@@ -92,6 +87,15 @@ public class SwitchDeviceService implements HealthIndicator
         finally {
             if (homeAutomation != null)
                 homeAutomation.logout();
+        }
+    }
+
+    private void validateSwitchDevice(final HomeAutomation homeAutomation) {
+        if (!homeAutomation.getSwitchList().contains(switchId)) {
+            throw new FritzBoxException("Switch not found");
+        }
+        if (!homeAutomation.getSwitchPresent(switchId)) {
+            throw new FritzBoxException("Switch currently not present");
         }
     }
 
