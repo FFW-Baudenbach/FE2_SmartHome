@@ -59,7 +59,7 @@ public class SwitchOffService
         if (detectedSwitchOnTimestamp != null) {
             LocalDateTime calculatedSwitchOffTimestamp = detectedSwitchOnTimestamp.plusMinutes(defaultSwitchOnMinutes);
             if (LocalDateTime.now().isBefore(calculatedSwitchOffTimestamp)) {
-                LOG.info("Did not reach calculated switch off time yet");
+                LOG.debug("Did not reach calculated switch off time yet");
                 return;
             }
         }
@@ -75,7 +75,7 @@ public class SwitchOffService
             // Already off - reset for next round
             if (currentState == SwitchDeviceService.SwitchState.OFF) {
                 detectedSwitchOnTimestamp = null;
-                LOG.info("No scheduled switch off necessary as switch is already turned off");
+                LOG.debug("No scheduled switch off necessary as switch is already turned off");
                 return;
             }
 
@@ -116,7 +116,7 @@ public class SwitchOffService
 
     /**
      * Try to find any motion detector. If found, return the latest motion detecte time
-     * @param homeAutomation
+     * @param homeAutomation the fritzbox api object
      * @return LocalDateTime with last motion detected or empty
      */
     private Optional<LocalDateTime> getLastMotionFromMotionDetectors(final HomeAutomation homeAutomation) {
