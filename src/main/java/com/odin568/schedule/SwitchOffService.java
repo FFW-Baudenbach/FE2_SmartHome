@@ -2,7 +2,6 @@ package com.odin568.schedule;
 
 import com.github.kaklakariada.fritzbox.FritzBoxException;
 import com.github.kaklakariada.fritzbox.HomeAutomation;
-import com.odin568.service.SwitchDeviceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,17 +68,14 @@ public class SwitchOffService
             homeAutomation = HomeAutomation.connect(url, username, password);
             validateSwitchDevice(homeAutomation);
 
-            // Grab current switch state.
-            SwitchDeviceService.SwitchState currentState = homeAutomation.getSwitchState(switchId) ? SwitchDeviceService.SwitchState.ON : SwitchDeviceService.SwitchState.OFF;
-
-            // Already off - reset for next round
-            if (currentState == SwitchDeviceService.SwitchState.OFF) {
+            // If switch is already off - reset for next round
+            if (!homeAutomation.getSwitchState(switchId)) {
                 detectedSwitchOnTimestamp = null;
                 LOG.debug("No scheduled switch off necessary as switch is already turned off");
                 return;
             }
 
-            // First 'on' detected, save it for next round
+            // First 'on' detected, save timestamp for next round
             if (detectedSwitchOnTimestamp == null) {
                 LOG.info("Detected switch is turned on");
                 detectedSwitchOnTimestamp = LocalDateTime.now();
@@ -94,12 +90,12 @@ public class SwitchOffService
                     LOG.info("Switching device off as no motion was detected for {} minutes", defaultMotionMinutes);
                     homeAutomation.switchPowerState(switchId, false);
                 }
-                return;
             }
-
-            // Otherwise, we reached the limit, switch off
-            LOG.info("Switching device off because it is switched on since {} minutes", defaultSwitchOnMinutes);
-            homeAutomation.switchPowerState(switchId, false);
+            else {
+                // Otherwise, we reached the limit, switch off
+                LOG.info("Switching device off because it is switched on since {} minutes", defaultSwitchOnMinutes);
+                homeAutomation.switchPowerState(switchId, false);
+            }
         }
         catch (RuntimeException ex) {
             LOG.error("Failed on ScheduledSwitchOff", ex);
