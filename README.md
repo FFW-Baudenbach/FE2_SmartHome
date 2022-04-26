@@ -21,7 +21,7 @@ Following apis are implemented:
 
 ## Provided schedule
 A configurable optional task takes care to automatically shut off the switch device after a given period in time.  
-If a motion was detected by a Motion Detector, then the time is extended again to the defined period.
+If a motion was detected by a Motion Detector, then this time will be prolonged by a configurable amount of minutes if a motion was detected in the last same amount of minutes.
 
 ## Usage
 The following environment variables need to be provided:
@@ -33,5 +33,5 @@ The following environment variables need to be provided:
 
 The following environment variables are optional:
 * schedule.switchoff.fixedDelayMinutes (default: off)
-* schedule.switchoff.defaultSwitchOnMinutes (default: 30)
-
+* schedule.switchoff.defaultSwitchOnMinutes (default: 60)
+* schedule.switchoff.defaultMotionMinutes (default: 30)

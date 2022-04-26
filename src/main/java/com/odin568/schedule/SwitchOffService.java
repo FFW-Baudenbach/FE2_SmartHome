@@ -9,9 +9,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -25,13 +25,16 @@ public class SwitchOffService
     private final String password;
     private final String switchId;
     private final long defaultSwitchOnMinutes;
+
+    private final long defaultMotionMinutes;
     private LocalDateTime detectedSwitchOnTimestamp = null;
 
     public SwitchOffService(@Value("${fritzbox.url}") String url,
-                               @Value("${fritzbox.username}") String username,
-                               @Value("${fritzbox.password}") String password,
-                               @Value("${fritzbox.switchid}") Long switchId,
-                               @Value("${schedule.switchoff.defaultSwitchOnMinutes:30}") long defaultSwitchOnMinutes)
+                            @Value("${fritzbox.username}") String username,
+                            @Value("${fritzbox.password}") String password,
+                            @Value("${fritzbox.switchid}") Long switchId,
+                            @Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
+                            @Value("${schedule.switchoff.defaultMotionMinutes:30}") long defaultMotionMinutes)
     {
         this.url = url;
         this.username = username;
@@ -40,6 +43,10 @@ public class SwitchOffService
         this.defaultSwitchOnMinutes = defaultSwitchOnMinutes;
         if (defaultSwitchOnMinutes <= 0) {
             throw new IllegalArgumentException("defaultSwitchOnMinutes is negative");
+        }
+        this.defaultMotionMinutes = defaultMotionMinutes;
+        if (defaultMotionMinutes <= 0) {
+            throw new IllegalArgumentException("defaultMotionMinutes is negative");
         }
     }
 
@@ -79,23 +86,20 @@ public class SwitchOffService
                 return;
             }
 
-            // Get last motion detection
-            long lastMotionDetected = 0;
-            for(var device : homeAutomation.getDeviceListInfos().getDevices()) {
-                if (device.getEtsiUnitInfo() == null || device.getAlert() == null) {
-                    continue;
+            // Try to get last motion detection if available
+            Optional<LocalDateTime> lastMotionDetected = getLastMotionFromMotionDetectors(homeAutomation);
+            if (lastMotionDetected.isPresent()) {
+                // Ensure switch is turned off only when no motion for at least {defaultSwitchOnMinutes} minutes
+                if (lastMotionDetected.get().isBefore(LocalDateTime.now().minusMinutes(defaultMotionMinutes))) {
+                    LOG.info("Switching device off as no motion was detected for {} minutes", defaultMotionMinutes);
+                    homeAutomation.switchPowerState(switchId, false);
                 }
-                if (device.getEtsiUnitInfo().getUnittype() == 515) {
-                    lastMotionDetected = Math.max(lastMotionDetected, device.getAlert().getLastAlertChgTimestamp());
-                }
+                return;
             }
 
-            // Ensure switch is turned out only when no motion for at least {defaultSwitchOnMinutes} minutes
-            LocalDateTime lastMotionDetectedTimestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(lastMotionDetected * 1000), TimeZone.getDefault().toZoneId());
-            if (lastMotionDetectedTimestamp.isBefore(LocalDateTime.now().minusMinutes(defaultSwitchOnMinutes))) {
-                LOG.info("Switching device off as no motion was detected for {} minutes", defaultSwitchOnMinutes);
-                homeAutomation.switchPowerState(switchId, false);
-            }
+            // Otherwise, we reached the limit, switch off
+            LOG.info("Switching device off because it is switched on since {} minutes", defaultSwitchOnMinutes);
+            homeAutomation.switchPowerState(switchId, false);
         }
         catch (RuntimeException ex) {
             LOG.error("Failed on ScheduledSwitchOff", ex);
@@ -109,6 +113,30 @@ public class SwitchOffService
         LOG.debug("Finished ScheduledSwitchOff");
     }
 
+
+    /**
+     * Try to find any motion detector. If found, return the latest motion detecte time
+     * @param homeAutomation
+     * @return LocalDateTime with last motion detected or empty
+     */
+    private Optional<LocalDateTime> getLastMotionFromMotionDetectors(final HomeAutomation homeAutomation) {
+        long lastMotionDetected = 0;
+        for(var device : homeAutomation.getDeviceListInfos().getDevices()) {
+            if (!device.isPresent() || device.getEtsiUnitInfo() == null || device.getAlert() == null) {
+                continue;
+            }
+            if (device.getEtsiUnitInfo().getUnittype() == 515) {
+                lastMotionDetected = Math.max(lastMotionDetected, device.getAlert().getLastAlertChgTimestamp());
+            }
+        }
+        if (lastMotionDetected > 0) {
+            return Optional.of(
+                    LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(lastMotionDetected * 1000), TimeZone.getDefault().toZoneId()));
+        }
+        return Optional.empty();
+    }
+
     private void validateSwitchDevice(final HomeAutomation homeAutomation) {
         if (!homeAutomation.getSwitchList().contains(switchId)) {
             throw new FritzBoxException("Switch not found");
@@ -117,4 +145,5 @@ public class SwitchOffService
             throw new FritzBoxException("Switch currently not present");
         }
     }
+
 }
