@@ -11,24 +11,20 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 public class CalendarService
 {
     private static final Logger LOG = LoggerFactory.getLogger(CalendarService.class);
-
-    private String icsUrl;
-
-    private String icsContent;
+    private final String icsUrl;
+    private ICalendar cachedCalendar;
+    private boolean forceUpdateOfCalendarOnNextRun = false;
 
     public CalendarService(@Value("${schedule.switchon.calendar.url:}") final String url)
     {
@@ -40,36 +36,34 @@ public class CalendarService
     }
 
     public Optional<Event> GetActiveEvent() {
-        return getEvents().stream().filter(Event::isActive).findFirst();
+        return getEvents()
+                .stream()
+                .filter(Event::isActive)
+                .findFirst();
     }
 
-    @Scheduled(cron = "0 0 1 * * *")
+    @Scheduled(cron = "0 0 */6 * * *")
     private void ScheduledCalendarRefresh()
     {
-        if (!IsActivated())
-            return;
-
         LOG.debug("Started ScheduledCalendarRefresh");
-        getIcsContent(true);
+        forceUpdateOfCalendarOnNextRun = true;
         LOG.debug("Finished ScheduledCalendarRefresh");
     }
 
     private List<Event> getEvents()
     {
-        Optional<String> icsContent = getIcsContent(false);
+        Optional<ICalendar> icsContent = getCalendar();
         if (icsContent.isEmpty()) {
             return new ArrayList<>();
         }
 
-        ICalendar iCal = Biweekly.parse(icsContent.get()).first();
-
         // Filter recurring events to the ones from interest
         LocalDateTime now = new Date().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-        Date startDateFilter = Date.from(now.minusDays(10).atZone(ZoneId.systemDefault()).toInstant());
-        Date endDateFilter = Date.from(now.plusDays(10).atZone(ZoneId.systemDefault()).toInstant());
+        Date startDateFilter = Date.from(now.minusDays(1).atZone(ZoneId.systemDefault()).toInstant());
+        Date endDateFilter = Date.from(now.plusDays(1).atZone(ZoneId.systemDefault()).toInstant());
 
         Map<LocalDateTime, Event> sortedEventMap = new TreeMap<>();
-        for (var event : iCal.getEvents()) {
+        for (var event : icsContent.get().getEvents()) {
             DateIterator it = event.getDateIterator(TimeZone.getDefault());
             while (it.hasNext())
             {
@@ -95,29 +89,37 @@ public class CalendarService
         return sortedEventMap.values().stream().toList();
     }
 
-    private synchronized Optional<String> getIcsContent(boolean forceRefresh)
+    private synchronized Optional<ICalendar> getCalendar()
     {
         if (!IsActivated()) {
             return Optional.empty();
         }
-        if (forceRefresh || icsContent == null || icsContent.isBlank()) {
+        if (forceUpdateOfCalendarOnNextRun || cachedCalendar == null) {
             try {
-                icsContent = "";
+                LOG.debug("Started updating calendar ics");
                 StringBuilder buffer = new StringBuilder();
                 URL url = new URL(icsUrl);
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
                     String temp;
-                    while ((temp = reader.readLine()) != null)
-                        buffer.append(temp).append(System.lineSeparator());
+                    while ((temp = reader.readLine()) != null) {
+                        buffer
+                            .append(temp)
+                            .append(System.lineSeparator());
+                    }
                 }
-                icsContent = buffer.toString().trim();
+                cachedCalendar = Biweekly.parse(buffer.toString().trim()).first();
+                forceUpdateOfCalendarOnNextRun = false;
+                LOG.debug("Finished updating calendar ics");
             }
-            catch (IOException e) {
-                LOG.error("Unable to retrieve calendar", e);
+            catch (Exception e) {
+                LOG.error("Unable to retrieve calendar ics", e);
             }
         }
-        if (icsContent != null && !icsContent.isBlank())
-            return Optional.of(icsContent);
+
+        // If updating failed, old state might be reused.
+        if (cachedCalendar != null)
+            return Optional.of(cachedCalendar);
+
         return Optional.empty();
     }
 }
