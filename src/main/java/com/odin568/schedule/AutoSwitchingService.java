@@ -138,7 +138,7 @@ public class AutoSwitchingService
             // If switch is already off - reset for next round
             if (!homeAutomation.getSwitchState(switchId)) {
                 detectedSwitchOnTimestamp = null;
-                LOG.debug("No scheduled switch off necessary anymore as switch is already turned off");
+                LOG.debug("Switch already turned off");
                 return;
             }
 
