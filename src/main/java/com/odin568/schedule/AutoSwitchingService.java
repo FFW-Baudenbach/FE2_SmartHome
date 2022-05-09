@@ -31,6 +31,7 @@ public class AutoSwitchingService
     private final long defaultMotionMinutes;
 
     private final Pattern titleRegex;
+    private final Pattern locationRegex;
 
     private LocalDateTime detectedSwitchOnTimestamp = null;
 
@@ -43,7 +44,8 @@ public class AutoSwitchingService
                                 @Value("${fritzbox.switchid}") Long switchId,
                                 @Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
                                 @Value("${schedule.switchoff.defaultMotionMinutes:10}") long defaultMotionMinutes,
-                                @Value("${schedule.switchon.calendar.titleRegex:.*}") final String titleRegex)
+                                @Value("${schedule.switchon.calendar.titleRegex:.*}") final String titleRegex,
+                                @Value("${schedule.switchon.calendar.locationRegex:.*}") final String locationRegex)
     {
         this.url = url;
         this.username = username;
@@ -51,6 +53,7 @@ public class AutoSwitchingService
         this.switchId = String.valueOf(switchId);
         this.defaultSwitchOnMinutes = defaultSwitchOnMinutes;
         this.titleRegex = Pattern.compile(titleRegex, Pattern.CASE_INSENSITIVE);
+        this.locationRegex = Pattern.compile(locationRegex, Pattern.CASE_INSENSITIVE);
         if (defaultSwitchOnMinutes <= 0) {
             throw new IllegalArgumentException("defaultSwitchOnMinutes is negative");
         }
@@ -94,9 +97,11 @@ public class AutoSwitchingService
             return;
         }
 
-        // Check if event title
-        if (titleRegex.matcher(activeCalendarEvent.get().getSummary()).matches()) {
-            LOG.debug("Active event should not trigger switch on: " + activeCalendarEvent.get().getSummary());
+        // Check event title
+        boolean matchingTitle = titleRegex.matcher(activeCalendarEvent.get().getSummary()).find();
+        boolean matchingLocation = locationRegex.matcher(activeCalendarEvent.get().getLocation()).find();
+        if (!matchingTitle && !matchingLocation) {
+            LOG.debug("Active event should not trigger switch on: " + activeCalendarEvent);
             return;
         }
 

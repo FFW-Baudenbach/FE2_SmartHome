@@ -10,6 +10,8 @@ public class Event
     private LocalDateTime endDate;
     private String summary;
 
+    private String location;
+
     public LocalDateTime getStartDate() {
         return startDate;
     }
@@ -34,6 +36,14 @@ public class Event
         this.summary = summary;
     }
 
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
     public boolean isActive() {
         var now = LocalDateTime.now();
         // Add some minutes before/after to compensate timings and monitor warmup, etc.
@@ -42,12 +52,6 @@ public class Event
 
     @Override
     public String toString() {
-        return startDate.toString() + " - " + endDate.toString() + ": " + summary;
-    }
-
-    public static LocalDateTime convertToLocalDateTime(Date dateToConvert) {
-        return dateToConvert.toInstant()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime();
+        return startDate.toString() + " - " + endDate.toString() + " @ " + location + ": " + summary;
     }
 }

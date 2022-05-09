@@ -75,13 +75,14 @@ public class CalendarService
                     continue;
                 }
                 long duration = ChronoUnit.MINUTES
-                        .between(Event.convertToLocalDateTime(event.getDateStart().getValue()),
-                                Event.convertToLocalDateTime(event.getDateEnd().getValue()));
+                        .between(convertToLocalDateTime(event.getDateStart().getValue()),
+                                convertToLocalDateTime(event.getDateEnd().getValue()));
 
                 Event newEvent = new Event();
-                newEvent.setStartDate(Event.convertToLocalDateTime(baseDate));
+                newEvent.setStartDate(convertToLocalDateTime(baseDate));
                 newEvent.setEndDate(newEvent.getStartDate().plusMinutes(duration));
                 newEvent.setSummary(event.getSummary().getValue());
+                newEvent.setLocation(event.getLocation().getValue());
 
                 sortedEventMap.put(newEvent.getStartDate(), newEvent);
             }
@@ -121,5 +122,11 @@ public class CalendarService
             return Optional.of(cachedCalendar);
 
         return Optional.empty();
+    }
+
+    private static LocalDateTime convertToLocalDateTime(Date dateToConvert) {
+        return dateToConvert.toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
     }
 }

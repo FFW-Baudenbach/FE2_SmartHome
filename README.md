@@ -28,7 +28,7 @@ If there is an active calendar event, switch will stay on until the event is fin
 
 ### Switch On
 A configurable optional task grabs an ICS calendar file from Internet and checks it for active events.  
-If an event is active and the title matches a given pattern, the switch will be turned on.
+If an event is active and the title/location matches a given pattern, the switch will be turned on.
 
 ## Usage
 The following environment variables need to be provided:
@@ -44,3 +44,4 @@ The following environment variables are optional:
 * schedule.switchoff.defaultMotionMinutes (default: 10)
 * schedule.switchon.calendar.url (default: empty)
 * schedule.switchon.calendar.titleRegex (default: .*)
+* schedule.switchon.calendar.locationRegex (default: .*)
