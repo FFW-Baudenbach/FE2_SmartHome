@@ -20,8 +20,15 @@ Following apis are implemented:
   Checks if configured device is present! 
 
 ## Provided schedule
+
+### Switch Off
 A configurable optional task takes care to automatically shut off the switch device after a given period in time.  
-If a motion was detected by a Motion Detector, then this time will be prolonged by a configurable amount of minutes if a motion was detected in the last same amount of minutes.
+If a motion was detected by a Motion Detector, then this time will be prolonged by a configurable amount of minutes if a motion was detected in the last same amount of minutes.  
+If there is an active calendar event, switch will stay on until the event is finished.
+
+### Switch On
+A configurable optional task grabs an ICS calendar file from Internet and checks it for active events.  
+If an event is active and the title matches a given pattern, the switch will be turned on.
 
 ## Usage
 The following environment variables need to be provided:
@@ -32,6 +39,8 @@ The following environment variables need to be provided:
 
 
 The following environment variables are optional:
-* schedule.switchoff.fixedDelayMinutes (default: off)
+* schedule.fixedDelayMinutes (default: empty)
 * schedule.switchoff.defaultSwitchOnMinutes (default: 60)
-* schedule.switchoff.defaultMotionMinutes (default: 30)
+* schedule.switchoff.defaultMotionMinutes (default: 10)
+* schedule.switchon.calendar.url (default: empty)
+* schedule.switchon.calendar.titleRegex (default: .*)

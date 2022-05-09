@@ -2,8 +2,10 @@ package com.odin568.schedule;
 
 import com.github.kaklakariada.fritzbox.FritzBoxException;
 import com.github.kaklakariada.fritzbox.HomeAutomation;
+import com.odin568.helper.Event;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -13,33 +15,42 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
-public class SwitchOffService
+public class AutoSwitchingService
 {
-    private static final Logger LOG = LoggerFactory.getLogger(SwitchOffService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AutoSwitchingService.class);
 
     private final String url;
     private final String username;
     private final String password;
     private final String switchId;
     private final long defaultSwitchOnMinutes;
-
     private final long defaultMotionMinutes;
+
+    private final Pattern titleRegex;
+
     private LocalDateTime detectedSwitchOnTimestamp = null;
 
-    public SwitchOffService(@Value("${fritzbox.url}") String url,
-                            @Value("${fritzbox.username}") String username,
-                            @Value("${fritzbox.password}") String password,
-                            @Value("${fritzbox.switchid}") Long switchId,
-                            @Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
-                            @Value("${schedule.switchoff.defaultMotionMinutes:30}") long defaultMotionMinutes)
+    @Autowired
+    private CalendarService calendarService;
+
+    public AutoSwitchingService(@Value("${fritzbox.url}") String url,
+                                @Value("${fritzbox.username}") String username,
+                                @Value("${fritzbox.password}") String password,
+                                @Value("${fritzbox.switchid}") Long switchId,
+                                @Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
+                                @Value("${schedule.switchoff.defaultMotionMinutes:10}") long defaultMotionMinutes,
+                                @Value("${schedule.switchon.calendar.titleRegex:.*}") final String titleRegex)
     {
         this.url = url;
         this.username = username;
         this.password = password;
         this.switchId = String.valueOf(switchId);
         this.defaultSwitchOnMinutes = defaultSwitchOnMinutes;
+        this.titleRegex = Pattern.compile(titleRegex, Pattern.CASE_INSENSITIVE);
         if (defaultSwitchOnMinutes <= 0) {
             throw new IllegalArgumentException("defaultSwitchOnMinutes is negative");
         }
@@ -49,8 +60,63 @@ public class SwitchOffService
         }
     }
 
-    @Scheduled(fixedDelayString = "${schedule.switchoff.fixedDelayMinutes:}", timeUnit = TimeUnit.MINUTES)
-    private void ScheduledSwitchOff()
+    @Scheduled(fixedDelayString = "${schedule.fixedDelayMinutes:}", timeUnit = TimeUnit.MINUTES)
+    private void ScheduledSwitching()
+    {
+        LOG.debug("Started ScheduledSwitching");
+
+        Optional<Event> activeCalendarEvent = calendarService.GetActiveEvent();
+        HomeAutomation homeAutomation = null;
+        try {
+            homeAutomation = HomeAutomation.connect(url, username, password);
+            validateSwitchDevice(homeAutomation);
+
+            StartScheduledSwitchOn(homeAutomation, activeCalendarEvent);
+            StartScheduledSwitchOff(homeAutomation, activeCalendarEvent);
+        }
+        catch (Exception e) {
+            LOG.error("Unhandled exception", e);
+        }
+        finally {
+            if (homeAutomation != null)
+                homeAutomation.logout();
+        }
+
+        LOG.debug("Finished ScheduledSwitching");
+    }
+
+    private void StartScheduledSwitchOn(final HomeAutomation homeAutomation, Optional<Event> activeCalendarEvent)
+    {
+        LOG.debug("Started ScheduledSwitchOn");
+
+        if (activeCalendarEvent.isEmpty()) {
+            LOG.debug("No active calendar event");
+            return;
+        }
+
+        // Check if event title
+        if (titleRegex.matcher(activeCalendarEvent.get().getSummary()).matches()) {
+            LOG.debug("Active event should not trigger switch on: " + activeCalendarEvent.get().getSummary());
+            return;
+        }
+
+        try {
+            // If switch is already on - nothing to do
+            if (homeAutomation.getSwitchState(switchId)) {
+                LOG.debug("No scheduled switch on necessary as switch is already turned on");
+                return;
+            }
+            detectedSwitchOnTimestamp = LocalDateTime.now();
+            homeAutomation.switchPowerState(switchId, true);
+            LOG.info("Switching on device due to active calendar event: " + activeCalendarEvent.get());
+        }
+        catch (RuntimeException ex) {
+            LOG.error("Failed on ScheduledSwitchOn", ex);
+        }
+
+        LOG.debug("Finished ScheduledSwitchOn");
+    }
+    private void StartScheduledSwitchOff(HomeAutomation homeAutomation, Optional<Event> activeCalendarEvent)
     {
         LOG.debug("Started ScheduledSwitchOff");
 
@@ -58,20 +124,21 @@ public class SwitchOffService
         if (detectedSwitchOnTimestamp != null) {
             LocalDateTime calculatedSwitchOffTimestamp = detectedSwitchOnTimestamp.plusMinutes(defaultSwitchOnMinutes);
             if (LocalDateTime.now().isBefore(calculatedSwitchOffTimestamp)) {
-                LOG.debug("Did not reach calculated switch off time yet");
+                LOG.debug("Skipping because did not reach calculated switch off time yet");
                 return;
             }
         }
 
-        HomeAutomation homeAutomation = null;
-        try {
-            homeAutomation = HomeAutomation.connect(url, username, password);
-            validateSwitchDevice(homeAutomation);
+        if (activeCalendarEvent.isPresent()) {
+            LOG.debug("Skipping because there is an active calendar event");
+            return;
+        }
 
+        try {
             // If switch is already off - reset for next round
             if (!homeAutomation.getSwitchState(switchId)) {
                 detectedSwitchOnTimestamp = null;
-                LOG.debug("No scheduled switch off necessary as switch is already turned off");
+                LOG.debug("No scheduled switch off necessary anymore as switch is already turned off");
                 return;
             }
 
@@ -99,15 +166,12 @@ public class SwitchOffService
         }
         catch (RuntimeException ex) {
             LOG.error("Failed on ScheduledSwitchOff", ex);
-            throw ex;
-        }
-        finally {
-            if (homeAutomation != null)
-                homeAutomation.logout();
         }
 
         LOG.debug("Finished ScheduledSwitchOff");
     }
+
+
 
 
     /**
