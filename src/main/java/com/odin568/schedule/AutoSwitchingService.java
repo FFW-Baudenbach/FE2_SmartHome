@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
@@ -55,10 +54,10 @@ public class AutoSwitchingService
         this.titleRegex = Pattern.compile(titleRegex, Pattern.CASE_INSENSITIVE);
         this.locationRegex = Pattern.compile(locationRegex, Pattern.CASE_INSENSITIVE);
         if (defaultSwitchOnMinutes <= 0) {
-            throw new IllegalArgumentException("defaultSwitchOnMinutes is negative");
+            throw new IllegalArgumentException("defaultSwitchOnMinutes is zero or negative");
         }
         this.defaultMotionMinutes = defaultMotionMinutes;
-        if (defaultMotionMinutes <= 0) {
+        if (defaultMotionMinutes < 0) {
             throw new IllegalArgumentException("defaultMotionMinutes is negative");
         }
     }
