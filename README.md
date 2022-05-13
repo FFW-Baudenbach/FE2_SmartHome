@@ -39,9 +39,9 @@ The following environment variables need to be provided:
 
 
 The following environment variables are optional:
-* schedule.fixedDelayMinutes (default: empty)
+* schedule.fixedDelayMinutes (default: empty => off)
 * schedule.switchoff.defaultSwitchOnMinutes (default: 60)
-* schedule.switchoff.defaultMotionMinutes (default: 10)
-* schedule.switchon.calendar.url (default: empty)
+* schedule.switchoff.defaultMotionMinutes (default: 10, 0 = off)
+* schedule.switchon.calendar.url (default: empty => off)
 * schedule.switchon.calendar.titleRegex (default: .*)
 * schedule.switchon.calendar.locationRegex (default: .*)

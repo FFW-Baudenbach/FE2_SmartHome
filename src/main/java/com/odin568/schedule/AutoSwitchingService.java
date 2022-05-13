@@ -34,6 +34,8 @@ public class AutoSwitchingService
 
     private LocalDateTime detectedSwitchOnTimestamp = null;
 
+    private Event switchOnEvent = null;
+
     @Autowired
     private CalendarService calendarService;
 
@@ -51,12 +53,13 @@ public class AutoSwitchingService
         this.password = password;
         this.switchId = String.valueOf(switchId);
         this.defaultSwitchOnMinutes = defaultSwitchOnMinutes;
+        this.defaultMotionMinutes = defaultMotionMinutes;
         this.titleRegex = Pattern.compile(titleRegex, Pattern.CASE_INSENSITIVE);
         this.locationRegex = Pattern.compile(locationRegex, Pattern.CASE_INSENSITIVE);
-        if (defaultSwitchOnMinutes <= 0) {
-            throw new IllegalArgumentException("defaultSwitchOnMinutes is zero or negative");
+
+        if (defaultSwitchOnMinutes < 0) {
+            throw new IllegalArgumentException("defaultSwitchOnMinutes is negative");
         }
-        this.defaultMotionMinutes = defaultMotionMinutes;
         if (defaultMotionMinutes < 0) {
             throw new IllegalArgumentException("defaultMotionMinutes is negative");
         }
@@ -95,14 +98,21 @@ public class AutoSwitchingService
             LOG.debug("No active calendar event");
             return;
         }
+        if (activeCalendarEvent.get() == switchOnEvent) {
+            LOG.debug("This event already triggered a switch on");
+            return;
+        }
 
         // Check event title
         boolean matchingTitle = titleRegex.matcher(activeCalendarEvent.get().getSummary()).find();
         boolean matchingLocation = locationRegex.matcher(activeCalendarEvent.get().getLocation()).find();
         if (!matchingTitle && !matchingLocation) {
-            LOG.debug("Active event should not trigger switch on: " + activeCalendarEvent);
+            LOG.debug("Found event does not fulfill criteria for switching on: " + activeCalendarEvent);
             return;
         }
+
+        // Save active event to avoid re-switching in case of manual switch off during active event
+        switchOnEvent = activeCalendarEvent.get();
 
         try {
             // If switch is already on - nothing to do
