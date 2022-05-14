@@ -1,8 +1,6 @@
 package com.odin568.helper;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
 
 public class Event
 {
@@ -46,8 +44,8 @@ public class Event
 
     public boolean isActive() {
         var now = LocalDateTime.now();
-        // Add some minutes before/after to compensate timings and monitor warmup, etc.
-        return now.isAfter(startDate.minusMinutes(5)) && now.isBefore(endDate.plusMinutes(5));
+        // Add some minutes before to compensate timings and monitor warmup.
+        return now.isAfter(startDate.minusMinutes(2)) && now.isBefore(endDate);
     }
 
     @Override

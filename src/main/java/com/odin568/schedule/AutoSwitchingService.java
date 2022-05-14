@@ -65,7 +65,7 @@ public class AutoSwitchingService
         }
     }
 
-    @Scheduled(fixedDelayString = "${schedule.fixedDelayMinutes:}", timeUnit = TimeUnit.MINUTES)
+    @Scheduled(initialDelayString = "${schedule.initialDelayMinutes:${schedule.fixedDelayMinutes:}}", fixedDelayString = "${schedule.fixedDelayMinutes:}", timeUnit = TimeUnit.MINUTES)
     private void ScheduledSwitching()
     {
         LOG.debug("Started ScheduledSwitching");
@@ -95,6 +95,7 @@ public class AutoSwitchingService
         LOG.debug("Started ScheduledSwitchOn");
 
         if (activeCalendarEvent.isEmpty()) {
+            switchOnEvent = null;
             LOG.debug("No active calendar event");
             return;
         }
@@ -111,18 +112,19 @@ public class AutoSwitchingService
             return;
         }
 
-        // Save active event to avoid re-switching in case of manual switch off during active event
-        switchOnEvent = activeCalendarEvent.get();
-
         try {
-            // If switch is already on - nothing to do
             if (homeAutomation.getSwitchState(switchId)) {
-                LOG.debug("No scheduled switch on necessary as switch is already turned on");
-                return;
+                LOG.info("No scheduled switch on necessary as switch is already turned on for starting calendar event: " + activeCalendarEvent.get());
             }
-            detectedSwitchOnTimestamp = LocalDateTime.now();
-            homeAutomation.switchPowerState(switchId, true);
-            LOG.info("Switching on device due to active calendar event: " + activeCalendarEvent.get());
+            else {
+                LOG.info("Switching on device due to starting calendar event: " + activeCalendarEvent.get());
+                homeAutomation.switchPowerState(switchId, true);
+            }
+
+            // Save event to avoid situation that switch is re-started immediately if manually turned off during event
+            switchOnEvent = activeCalendarEvent.get();
+            // Simulate detection of switch on so that it will be shut off at the end-date of the event
+            detectedSwitchOnTimestamp = activeCalendarEvent.get().getEndDate().minusMinutes(defaultSwitchOnMinutes);
         }
         catch (RuntimeException ex) {
             LOG.error("Failed on ScheduledSwitchOn", ex);
@@ -134,18 +136,19 @@ public class AutoSwitchingService
     {
         LOG.debug("Started ScheduledSwitchOff");
 
-        // Wait the minimum time after
+        // Do not switch off during active calendar event
+        if (activeCalendarEvent.isPresent()) {
+            LOG.debug("Skipping because there is an active calendar event");
+            return;
+        }
+
+        // If switch on was detected previously
         if (detectedSwitchOnTimestamp != null) {
             LocalDateTime calculatedSwitchOffTimestamp = detectedSwitchOnTimestamp.plusMinutes(defaultSwitchOnMinutes);
             if (LocalDateTime.now().isBefore(calculatedSwitchOffTimestamp)) {
                 LOG.debug("Skipping because did not reach calculated switch off time yet");
                 return;
             }
-        }
-
-        if (activeCalendarEvent.isPresent()) {
-            LOG.debug("Skipping because there is an active calendar event");
-            return;
         }
 
         try {
@@ -193,7 +196,12 @@ public class AutoSwitchingService
      * @param homeAutomation the fritzbox api object
      * @return LocalDateTime with last motion detected or empty
      */
-    private Optional<LocalDateTime> getLastMotionFromMotionDetectors(final HomeAutomation homeAutomation) {
+    private Optional<LocalDateTime> getLastMotionFromMotionDetectors(final HomeAutomation homeAutomation)
+    {
+        if (defaultMotionMinutes == 0) {
+            return Optional.empty();
+        }
+
         long lastMotionDetected = 0;
         for(var device : homeAutomation.getDeviceListInfos().getDevices()) {
             if (!device.isPresent() || device.getEtsiUnitInfo() == null || device.getAlert() == null) {
