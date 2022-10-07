@@ -1,4 +1,4 @@
-package com.odin568.schedule;
+package com.odin568.service;
 
 import biweekly.Biweekly;
 import biweekly.ICalendar;
@@ -7,6 +7,8 @@ import com.odin568.helper.Event;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
-public class CalendarService
+public class CalendarService implements HealthIndicator
 {
     private static final Logger LOG = LoggerFactory.getLogger(CalendarService.class);
     private final String icsUrl;
@@ -31,10 +33,6 @@ public class CalendarService
         this.icsUrl = url;
     }
 
-    private boolean IsActivated() {
-        return icsUrl != null && !icsUrl.isBlank();
-    }
-
     public Optional<Event> GetActiveEvent() {
         return getEvents()
                 .stream()
@@ -42,7 +40,11 @@ public class CalendarService
                 .findFirst();
     }
 
-    @Scheduled(cron = "0 0 */6 * * *")
+    private boolean IsActivated() {
+        return icsUrl != null && !icsUrl.isBlank();
+    }
+
+    @Scheduled(cron = "0 0 */2 * * *")
     private void ScheduledCalendarRefresh()
     {
         LOG.debug("Started ScheduledCalendarRefresh");
@@ -128,5 +130,18 @@ public class CalendarService
         return dateToConvert.toInstant()
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime();
+    }
+
+    @Override
+    public Health health() {
+        if (cachedCalendar == null) {
+            return Health.down().build();
+        }
+        var event = GetActiveEvent();
+        Map<String, String> result = new TreeMap<>();
+        result.put("activated", String.valueOf(IsActivated()));
+        result.put("activeEvent", String.valueOf(event.isPresent()));
+        result.put("activeEventName", event.map(Event::toString).orElse(null));
+        return Health.up().withDetails(result).build();
     }
 }

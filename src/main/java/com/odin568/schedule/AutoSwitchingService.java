@@ -1,8 +1,10 @@
 package com.odin568.schedule;
 
-import com.github.kaklakariada.fritzbox.FritzBoxException;
-import com.github.kaklakariada.fritzbox.HomeAutomation;
 import com.odin568.helper.Event;
+import com.odin568.helper.SwitchState;
+import com.odin568.service.CalendarService;
+import com.odin568.service.MotionDetectorService;
+import com.odin568.service.SwitchDeviceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,10 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -22,10 +22,6 @@ public class AutoSwitchingService
 {
     private static final Logger LOG = LoggerFactory.getLogger(AutoSwitchingService.class);
 
-    private final String url;
-    private final String username;
-    private final String password;
-    private final String switchId;
     private final long defaultSwitchOnMinutes;
     private final long defaultMotionMinutes;
 
@@ -39,19 +35,17 @@ public class AutoSwitchingService
     @Autowired
     private CalendarService calendarService;
 
-    public AutoSwitchingService(@Value("${fritzbox.url}") String url,
-                                @Value("${fritzbox.username}") String username,
-                                @Value("${fritzbox.password}") String password,
-                                @Value("${fritzbox.switchid}") Long switchId,
-                                @Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
+    @Autowired
+    private SwitchDeviceService switchDeviceService;
+
+    @Autowired
+    private MotionDetectorService motionDetectorService;
+
+    public AutoSwitchingService(@Value("${schedule.switchoff.defaultSwitchOnMinutes:60}") long defaultSwitchOnMinutes,
                                 @Value("${schedule.switchoff.defaultMotionMinutes:10}") long defaultMotionMinutes,
                                 @Value("${schedule.switchon.calendar.titleRegex:.*}") final String titleRegex,
                                 @Value("${schedule.switchon.calendar.locationRegex:.*}") final String locationRegex)
     {
-        this.url = url;
-        this.username = username;
-        this.password = password;
-        this.switchId = String.valueOf(switchId);
         this.defaultSwitchOnMinutes = defaultSwitchOnMinutes;
         this.defaultMotionMinutes = defaultMotionMinutes;
         this.titleRegex = Pattern.compile(titleRegex, Pattern.CASE_INSENSITIVE);
@@ -71,26 +65,19 @@ public class AutoSwitchingService
         LOG.debug("Started ScheduledSwitching");
 
         Optional<Event> activeCalendarEvent = calendarService.GetActiveEvent();
-        HomeAutomation homeAutomation = null;
-        try {
-            homeAutomation = HomeAutomation.connect(url, username, password);
-            validateSwitchDevice(homeAutomation);
 
-            StartScheduledSwitchOn(homeAutomation, activeCalendarEvent);
-            StartScheduledSwitchOff(homeAutomation, activeCalendarEvent);
+        try {
+            StartScheduledSwitchOn(activeCalendarEvent);
+            StartScheduledSwitchOff(activeCalendarEvent);
         }
         catch (Exception e) {
             LOG.error("Unhandled exception", e);
-        }
-        finally {
-            if (homeAutomation != null)
-                homeAutomation.logout();
         }
 
         LOG.debug("Finished ScheduledSwitching");
     }
 
-    private void StartScheduledSwitchOn(final HomeAutomation homeAutomation, Optional<Event> activeCalendarEvent)
+    private void StartScheduledSwitchOn(Optional<Event> activeCalendarEvent)
     {
         LOG.debug("Started ScheduledSwitchOn");
 
@@ -113,12 +100,12 @@ public class AutoSwitchingService
         }
 
         try {
-            if (homeAutomation.getSwitchState(switchId)) {
+            if (switchDeviceService.GetSwitchPowerState() == SwitchState.ON) {
                 LOG.info("No scheduled switch on necessary as switch is already turned on for starting calendar event: " + activeCalendarEvent.get());
             }
             else {
                 LOG.info("Switching on device due to starting calendar event: " + activeCalendarEvent.get());
-                homeAutomation.switchPowerState(switchId, true);
+                switchDeviceService.SwitchPowerState(SwitchState.ON);
             }
 
             // Save event to avoid situation that switch is re-started immediately if manually turned off during event
@@ -132,7 +119,7 @@ public class AutoSwitchingService
 
         LOG.debug("Finished ScheduledSwitchOn");
     }
-    private void StartScheduledSwitchOff(HomeAutomation homeAutomation, Optional<Event> activeCalendarEvent)
+    private void StartScheduledSwitchOff(Optional<Event> activeCalendarEvent)
     {
         LOG.debug("Started ScheduledSwitchOff");
 
@@ -153,7 +140,7 @@ public class AutoSwitchingService
 
         try {
             // If switch is already off - reset for next round
-            if (!homeAutomation.getSwitchState(switchId)) {
+            if (switchDeviceService.GetSwitchPowerState() == SwitchState.OFF) {
                 detectedSwitchOnTimestamp = null;
                 LOG.debug("Switch already turned off");
                 return;
@@ -167,18 +154,18 @@ public class AutoSwitchingService
             }
 
             // Try to get last motion detection if available
-            Optional<LocalDateTime> lastMotionDetected = getLastMotionFromMotionDetectors(homeAutomation);
-            if (lastMotionDetected.isPresent()) {
+            Optional<LocalDateTime> lastMotionDetected = motionDetectorService.getLastMotionFromMotionDetectors();
+            if (lastMotionDetected.isPresent() && defaultMotionMinutes > 0) {
                 // Ensure switch is turned off only when no motion for at least {defaultSwitchOnMinutes} minutes
                 if (lastMotionDetected.get().isBefore(LocalDateTime.now().minusMinutes(defaultMotionMinutes))) {
                     LOG.info("Switching device off as no motion was detected for {} minutes", defaultMotionMinutes);
-                    homeAutomation.switchPowerState(switchId, false);
+                    switchDeviceService.SwitchPowerState(SwitchState.OFF);
                 }
             }
             else {
                 // Otherwise, we reached the limit, switch off
                 LOG.info("Switching device off because it is switched on since {} minutes", defaultSwitchOnMinutes);
-                homeAutomation.switchPowerState(switchId, false);
+                switchDeviceService.SwitchPowerState(SwitchState.OFF);
             }
         }
         catch (RuntimeException ex) {
@@ -186,46 +173,6 @@ public class AutoSwitchingService
         }
 
         LOG.debug("Finished ScheduledSwitchOff");
-    }
-
-
-
-
-    /**
-     * Try to find any motion detector. If found, return the latest motion detecte time
-     * @param homeAutomation the fritzbox api object
-     * @return LocalDateTime with last motion detected or empty
-     */
-    private Optional<LocalDateTime> getLastMotionFromMotionDetectors(final HomeAutomation homeAutomation)
-    {
-        if (defaultMotionMinutes == 0) {
-            return Optional.empty();
-        }
-
-        long lastMotionDetected = 0;
-        for(var device : homeAutomation.getDeviceListInfos().getDevices()) {
-            if (!device.isPresent() || device.getEtsiUnitInfo() == null || device.getAlert() == null) {
-                continue;
-            }
-            if (device.getEtsiUnitInfo().getUnittype() == 515) {
-                lastMotionDetected = Math.max(lastMotionDetected, device.getAlert().getLastAlertChgTimestamp());
-            }
-        }
-        if (lastMotionDetected > 0) {
-            return Optional.of(
-                    LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(lastMotionDetected * 1000), TimeZone.getDefault().toZoneId()));
-        }
-        return Optional.empty();
-    }
-
-    private void validateSwitchDevice(final HomeAutomation homeAutomation) {
-        if (!homeAutomation.getSwitchList().contains(switchId)) {
-            throw new FritzBoxException("Switch not found");
-        }
-        if (!homeAutomation.getSwitchPresent(switchId)) {
-            throw new FritzBoxException("Switch currently not present");
-        }
     }
 
 }
