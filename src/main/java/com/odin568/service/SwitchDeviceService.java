@@ -10,8 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Service;
-
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 @Service
 public class SwitchDeviceService implements HealthIndicator
