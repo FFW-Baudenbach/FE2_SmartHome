@@ -30,7 +30,7 @@ public class AutoSwitchingService
 
     private LocalDateTime detectedSwitchOnTimestamp = null;
 
-    private Event switchOnEvent = null;
+    private String switchOnEvent = null;
 
     @Autowired
     private CalendarService calendarService;
@@ -86,7 +86,7 @@ public class AutoSwitchingService
             LOG.debug("No active calendar event");
             return;
         }
-        if (activeCalendarEvent.get() == switchOnEvent) {
+        if (activeCalendarEvent.get().toString().equals(switchOnEvent)) {
             LOG.debug("This event already triggered a switch on");
             return;
         }
@@ -109,7 +109,7 @@ public class AutoSwitchingService
             }
 
             // Save event to avoid situation that switch is re-started immediately if manually turned off during event
-            switchOnEvent = activeCalendarEvent.get();
+            switchOnEvent = activeCalendarEvent.get().toString();
             // Simulate detection of switch on so that it will be shut off at the end-date of the event
             detectedSwitchOnTimestamp = activeCalendarEvent.get().getEndDate().minusMinutes(defaultSwitchOnMinutes);
         }
