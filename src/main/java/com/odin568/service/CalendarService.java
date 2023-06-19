@@ -83,8 +83,8 @@ public class CalendarService implements HealthIndicator
                 Event newEvent = new Event();
                 newEvent.setStartDate(convertToLocalDateTime(baseDate));
                 newEvent.setEndDate(newEvent.getStartDate().plusMinutes(duration));
-                newEvent.setSummary(event.getSummary().getValue());
-                newEvent.setLocation(event.getLocation().getValue());
+                newEvent.setSummary(event.getSummary() != null ? event.getSummary().getValue() : "");
+                newEvent.setLocation(event.getLocation() != null ? event.getLocation().getValue() : "");
 
                 sortedEventMap.put(newEvent.getStartDate(), newEvent);
             }
