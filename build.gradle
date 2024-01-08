@@ -33,7 +33,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'com.github.kaklakariada:fritzbox-java-api:1.7.0'
-	implementation 'net.sf.biweekly:biweekly:0.6.7'
+	implementation 'net.sf.biweekly:biweekly:0.6.8'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
