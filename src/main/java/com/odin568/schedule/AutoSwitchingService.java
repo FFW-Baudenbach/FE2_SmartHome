@@ -129,7 +129,7 @@ public class AutoSwitchingService
             return;
         }
 
-        // If switch on was detected previously
+        // Do not switch off if switch on was detected previously and time limit is not yet reached
         if (detectedSwitchOnTimestamp != null) {
             LocalDateTime calculatedSwitchOffTimestamp = detectedSwitchOnTimestamp.plusMinutes(defaultSwitchOnMinutes);
             if (LocalDateTime.now().isBefore(calculatedSwitchOffTimestamp)) {
@@ -153,19 +153,21 @@ public class AutoSwitchingService
                 return;
             }
 
-            // Try to get last motion detection if available
+            // Now we need to switch off unless motion detection is available and motion was detected
             Optional<LocalDateTime> lastMotionDetected = motionDetectorService.getLastMotionFromMotionDetectors();
             if (lastMotionDetected.isPresent() && defaultMotionMinutes > 0) {
                 // Ensure switch is turned off only when no motion for at least {defaultSwitchOnMinutes} minutes
                 if (lastMotionDetected.get().isBefore(LocalDateTime.now().minusMinutes(defaultMotionMinutes))) {
                     LOG.info("Switching device off as no motion was detected for {} minutes", defaultMotionMinutes);
                     switchDeviceService.SwitchPowerState(SwitchState.OFF);
+                    detectedSwitchOnTimestamp = null;
                 }
             }
             else {
                 // Otherwise, we reached the limit, switch off
                 LOG.info("Switching device off because it is switched on since {} minutes", defaultSwitchOnMinutes);
                 switchDeviceService.SwitchPowerState(SwitchState.OFF);
+                detectedSwitchOnTimestamp = null;
             }
         }
         catch (RuntimeException ex) {
