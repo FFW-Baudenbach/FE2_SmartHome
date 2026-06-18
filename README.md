@@ -1,4 +1,8 @@
 # FE2_SmartHome
+
+> Archived. We use HomeAssistant now
+
+
 The purpose of this service is to provide a simple REST API (GET-Requests) to switch the power state of [AVM Fritz!DECT](https://avm.de/produkte/fritzdect/) devices on and off.  
 Reason for developing is to be able to enable TV-Screen for Alamos AlarmMonitor in case of fire alarm to display relevant information.  
 Thereby, the alarm pipeline will call the endpoint to turn on the power of the device.
